@@ -101,7 +101,7 @@ with col2:
     with c6: other_meal = st.number_input("기타 공제", min_value=0, value=0)
 
     # ------------------------------------------
-    # ✈ 항공운임 
+    # ✈ 항공운임
     # ------------------------------------------
     st.subheader("🛫 항공운임")
     
@@ -115,40 +115,60 @@ with col2:
     st.text_input("항공운임 (원화)", key="airfare_input", on_change=update_airfare, help="입력 후 엔터를 치거나 바깥을 클릭하면 쉼표가 적용됩니다.")
 
     # ------------------------------------------
+    # 💼 준비금 & 기타비용 공통 설정
+    # ------------------------------------------
+    table_config = {
+        "항목": st.column_config.SelectboxColumn("항목", options=PREP_CATS, required=True),
+        "금액": st.column_config.TextColumn("금액 (입력 후 자동 쉼표)"),
+        "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True),
+        "기타항목입력": st.column_config.TextColumn("기타항목입력 (기타 선택시에만 반영)")
+    }
+    table_order = ["항목", "금액", "통화", "기타항목입력"]
+
+    # ------------------------------------------
     # 💼 준비금
     # ------------------------------------------
     st.subheader("💼 준비금")
     st.caption("표 아래의 '+' 버튼을 눌러 항목을 추가하거나, 행을 선택해 'Delete' 키로 삭제할 수 있습니다.")
     
     if "prep_df" not in st.session_state:
-        # 데이터프레임 초기화 시 컬럼 순서 재배치
-        st.session_state.prep_df = pd.DataFrame([{
-            "항목": "여행자보험료", 
-            "금액": "0", 
-            "통화": "KRW",
-            "기타항목입력": ""
-        }])
-    
-    config = {
-        "항목": st.column_config.SelectboxColumn("항목", options=PREP_CATS, required=True),
-        "금액": st.column_config.TextColumn("금액 (입력 후 자동 쉼표)"),
-        "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True),
-        "기타항목입력": st.column_config.TextColumn("기타항목입력 (기타 선택시에만 반영)")
-    }
+        st.session_state.prep_df = pd.DataFrame([{"항목": "여행자보험료", "금액": "0", "통화": "KRW", "기타항목입력": ""}])
     
     edited_prep = st.data_editor(
         st.session_state.prep_df, 
-        column_order=["항목", "금액", "통화", "기타항목입력"], # 웹에 표시될 순서 강제 고정
-        column_config=config, 
+        column_order=table_order,
+        column_config=table_config, 
         num_rows="dynamic", 
         use_container_width=True,
         hide_index=True,
         key="prep_editor"
     )
 
+    # ------------------------------------------
+    # 🚕 기타비용 (현지교통비 등) 추가
+    # ------------------------------------------
+    st.subheader("🚕 기타비용 (현지교통비 등)")
+    
+    if "other_df" not in st.session_state:
+        st.session_state.other_df = pd.DataFrame([{"항목": "현지교통비 (기차, 버스, 택시 등)", "금액": "0", "통화": "KRW", "기타항목입력": ""}])
+    
+    edited_other = st.data_editor(
+        st.session_state.other_df, 
+        column_order=table_order,
+        column_config=table_config, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        hide_index=True,
+        key="other_editor"
+    )
+
+    # ------------------------------------------
+    # 테이블 실시간 쉼표 포맷팅 및 오류 방지 처리 (두 테이블 통합)
+    # ------------------------------------------
     needs_rerun = False
+
+    # 1. 준비금 처리
     for i, row in edited_prep.iterrows():
-        # 1. 금액 쉼표 처리
         raw_str = str(row["금액"])
         if raw_str.strip() == "": raw_str = "0"
         val = clean_number_str(raw_str)
@@ -157,16 +177,31 @@ with col2:
             edited_prep.at[i, "금액"] = fmt_val
             needs_rerun = True
             
-        # 2. 기타 항목이 아닌데 내용이 있으면 자동 초기화 (막기)
         if row["항목"] != "기타" and row["기타항목입력"] != "":
             edited_prep.at[i, "기타항목입력"] = ""
+            needs_rerun = True
+
+    # 2. 기타비용 처리
+    for i, row in edited_other.iterrows():
+        raw_str = str(row["금액"])
+        if raw_str.strip() == "": raw_str = "0"
+        val = clean_number_str(raw_str)
+        fmt_val = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
+        if raw_str != fmt_val:
+            edited_other.at[i, "금액"] = fmt_val
+            needs_rerun = True
+            
+        if row["항목"] != "기타" and row["기타항목입력"] != "":
+            edited_other.at[i, "기타항목입력"] = ""
             needs_rerun = True
             
     if needs_rerun:
         st.session_state.prep_df = edited_prep
+        st.session_state.other_df = edited_other
         st.rerun()
     else:
         st.session_state.prep_df = edited_prep
+        st.session_state.other_df = edited_other
     
     # ------------------------------------------
     # 💱 환율
@@ -223,7 +258,7 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
         calc_meal = meal_unit * meal_count_after_exclusion
         total_meal = truncate_1_decimal(calc_meal)
 
-        # 4. 준비금 취합
+        # 4-1. 준비금 취합
         prep_usd_total = 0.0
         prep_krw_total = 0.0
         prep_items_narrative = []
@@ -245,11 +280,33 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
 
         prep_usd_total = truncate_1_decimal(prep_usd_total)
 
+        # 4-2. 기타비용 취합
+        other_usd_total = 0.0
+        other_krw_total = 0.0
+        other_items_narrative = []
+        
+        for _, row in edited_other.iterrows():
+            amt = clean_number_str(row["금액"])
+            if amt == 0: continue
+            
+            cat = row["항목"]
+            if cat == "기타" and row["기타항목입력"]:
+                cat = row["기타항목입력"]
+                
+            if row["통화"] == "USD":
+                other_usd_total += amt
+                other_items_narrative.append(f"({cat})${amt:,.1f}")
+            else:
+                other_krw_total += amt
+                other_items_narrative.append(f"({cat}){amt:,.0f}원")
+
+        other_usd_total = truncate_1_decimal(other_usd_total)
+
         # 5. 합계 계산 
-        calc_total_usd = total_daily + total_hotel + total_meal + prep_usd_total
+        calc_total_usd = total_daily + total_hotel + total_meal + prep_usd_total + other_usd_total
         total_usd = truncate_1_decimal(calc_total_usd)
         
-        fixed_krw_total = airfare_krw + prep_krw_total
+        fixed_krw_total = airfare_krw + prep_krw_total + other_krw_total
         total_krw = math.floor(total_usd * exchange + fixed_krw_total)
 
         # ====================
@@ -285,6 +342,9 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
         if prep_items_narrative:
             lines.append(f"-준비금 : {', '.join(prep_items_narrative)} 청구")
 
+        if other_items_narrative:
+            lines.append(f"-기타비용 : {', '.join(other_items_narrative)} 청구")
+
         if airfare_krw > 0:
             lines.append(f"-운임료 : (항공){airfare_krw:,.0f}원 청구")
 
@@ -299,6 +359,7 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
             "일비": [f"${total_daily:,.1f}"],
             "식비": [f"${total_meal:,.1f}"],
             "숙박비": [f"${total_hotel:,.1f}"],
-            "준비금 및 기타": [", ".join(prep_items_narrative) if prep_items_narrative else "-"]
+            "준비금": [", ".join(prep_items_narrative) if prep_items_narrative else "-"],
+            "기타비용": [", ".join(other_items_narrative) if other_items_narrative else "-"]
         })
         st.dataframe(df_result, hide_index=True)
