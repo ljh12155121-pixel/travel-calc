@@ -127,7 +127,7 @@ with col2:
     
     prep_table_config = {
         "항목": st.column_config.SelectboxColumn("항목", options=PREP_CATS, required=True),
-        "금액": st.column_config.TextColumn("금액 (입력 후 자동 쉼표)"),
+        "금액": st.column_config.TextColumn("금액"),
         "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True),
         "기타항목입력": st.column_config.TextColumn("기타항목입력 (기타 선택시에만 반영)")
     }
@@ -146,15 +146,15 @@ with col2:
     # ------------------------------------------
     # 🚕 기타비용 (수기 입력)
     # ------------------------------------------
-    st.subheader("🚕 기타비용 (현지교통비 등)")
+    st.subheader("🚕 기타비용 (차량 임차, 철도 운임 등)")
     st.caption("발생한 기타 비용의 내역을 직접 입력해 주세요.")
     
     if "other_df" not in st.session_state:
-        st.session_state.other_df = pd.DataFrame([{"기타항목입력": "현지교통비", "금액": "0", "통화": "KRW"}])
+        st.session_state.other_df = pd.DataFrame([{"기타항목입력": "", "금액": "0", "통화": "KRW"}])
     
     other_table_config = {
         "기타항목입력": st.column_config.TextColumn("내역 (직접 입력)", required=True),
-        "금액": st.column_config.TextColumn("금액 (입력 후 자동 쉼표)"),
+        "금액": st.column_config.TextColumn("금액"),
         "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True)
     }
     other_table_order = ["기타항목입력", "금액", "통화"]
