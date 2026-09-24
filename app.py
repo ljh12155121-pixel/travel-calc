@@ -25,7 +25,9 @@ COUNTRIES_WITH_SPECIAL_CITIES = app_data["COUNTRIES_WITH_SPECIAL_CITIES"]
 GRADE_B = app_data["GRADE_B_COUNTRIES"]
 GRADE_C = app_data["GRADE_C_COUNTRIES"]
 GRADE_D = app_data["GRADE_D_COUNTRIES"]
-PREP_CATS = app_data["PREP_COMMON_CATEGORIES"]
+
+# 준비금 항목에서 "현지교통비 (기차, 버스, 택시 등)" 제외
+PREP_CATS = [cat for cat in app_data["PREP_COMMON_CATEGORIES"] if "현지교통비" not in cat]
 
 # 국가 → 기본 등급 매핑
 COUNTRY_DEFAULT_GRADE = {}
@@ -115,17 +117,6 @@ with col2:
     st.text_input("항공운임 (원화)", key="airfare_input", on_change=update_airfare, help="입력 후 엔터를 치거나 바깥을 클릭하면 쉼표가 적용됩니다.")
 
     # ------------------------------------------
-    # 💼 준비금 & 기타비용 공통 설정
-    # ------------------------------------------
-    table_config = {
-        "항목": st.column_config.SelectboxColumn("항목", options=PREP_CATS, required=True),
-        "금액": st.column_config.TextColumn("금액 (입력 후 자동 쉼표)"),
-        "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True),
-        "기타항목입력": st.column_config.TextColumn("기타항목입력 (기타 선택시에만 반영)")
-    }
-    table_order = ["항목", "금액", "통화", "기타항목입력"]
-
-    # ------------------------------------------
     # 💼 준비금
     # ------------------------------------------
     st.subheader("💼 준비금")
@@ -134,10 +125,18 @@ with col2:
     if "prep_df" not in st.session_state:
         st.session_state.prep_df = pd.DataFrame([{"항목": "여행자보험료", "금액": "0", "통화": "KRW", "기타항목입력": ""}])
     
+    prep_table_config = {
+        "항목": st.column_config.SelectboxColumn("항목", options=PREP_CATS, required=True),
+        "금액": st.column_config.TextColumn("금액 (입력 후 자동 쉼표)"),
+        "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True),
+        "기타항목입력": st.column_config.TextColumn("기타항목입력 (기타 선택시에만 반영)")
+    }
+    prep_table_order = ["항목", "금액", "통화", "기타항목입력"]
+    
     edited_prep = st.data_editor(
         st.session_state.prep_df, 
-        column_order=table_order,
-        column_config=table_config, 
+        column_order=prep_table_order,
+        column_config=prep_table_config, 
         num_rows="dynamic", 
         use_container_width=True,
         hide_index=True,
@@ -145,17 +144,25 @@ with col2:
     )
 
     # ------------------------------------------
-    # 🚕 기타비용 (현지교통비 등) 추가
+    # 🚕 기타비용 (수기 입력)
     # ------------------------------------------
     st.subheader("🚕 기타비용 (현지교통비 등)")
+    st.caption("발생한 기타 비용의 내역을 직접 입력해 주세요.")
     
     if "other_df" not in st.session_state:
-        st.session_state.other_df = pd.DataFrame([{"항목": "현지교통비 (기차, 버스, 택시 등)", "금액": "0", "통화": "KRW", "기타항목입력": ""}])
+        st.session_state.other_df = pd.DataFrame([{"기타항목입력": "현지교통비", "금액": "0", "통화": "KRW"}])
+    
+    other_table_config = {
+        "기타항목입력": st.column_config.TextColumn("내역 (직접 입력)", required=True),
+        "금액": st.column_config.TextColumn("금액 (입력 후 자동 쉼표)"),
+        "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True)
+    }
+    other_table_order = ["기타항목입력", "금액", "통화"]
     
     edited_other = st.data_editor(
         st.session_state.other_df, 
-        column_order=table_order,
-        column_config=table_config, 
+        column_order=other_table_order,
+        column_config=other_table_config, 
         num_rows="dynamic", 
         use_container_width=True,
         hide_index=True,
@@ -163,7 +170,7 @@ with col2:
     )
 
     # ------------------------------------------
-    # 테이블 실시간 쉼표 포맷팅 및 오류 방지 처리 (두 테이블 통합)
+    # 테이블 실시간 쉼표 포맷팅 및 오류 방지 처리
     # ------------------------------------------
     needs_rerun = False
 
@@ -181,7 +188,7 @@ with col2:
             edited_prep.at[i, "기타항목입력"] = ""
             needs_rerun = True
 
-    # 2. 기타비용 처리
+    # 2. 기타비용 처리 (항목 열이 없으므로 금액 쉼표만 처리)
     for i, row in edited_other.iterrows():
         raw_str = str(row["금액"])
         if raw_str.strip() == "": raw_str = "0"
@@ -189,10 +196,6 @@ with col2:
         fmt_val = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
         if raw_str != fmt_val:
             edited_other.at[i, "금액"] = fmt_val
-            needs_rerun = True
-            
-        if row["항목"] != "기타" and row["기타항목입력"] != "":
-            edited_other.at[i, "기타항목입력"] = ""
             needs_rerun = True
             
     if needs_rerun:
@@ -289,9 +292,8 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
             amt = clean_number_str(row["금액"])
             if amt == 0: continue
             
-            cat = row["항목"]
-            if cat == "기타" and row["기타항목입력"]:
-                cat = row["기타항목입력"]
+            cat = str(row.get("기타항목입력", "")).strip()
+            if not cat: cat = "기타비용"
                 
             if row["통화"] == "USD":
                 other_usd_total += amt
