@@ -101,7 +101,7 @@ with col2:
     with c6: other_meal = st.number_input("기타 공제", min_value=0, value=0)
 
     # ------------------------------------------
-    # ✈ 항공운임 (천단위 쉼표 적용)
+    # ✈ 항공운임 
     # ------------------------------------------
     st.subheader("🛫 항공운임")
     
@@ -112,7 +112,7 @@ with col2:
     if "airfare_input" not in st.session_state:
         st.session_state.airfare_input = "0"
         
-    st.text_input("항공운임 (원화)", key="airfare_input", on_change=update_airfare)
+    st.text_input("항공운임 (원화)", key="airfare_input", on_change=update_airfare, help="입력 후 엔터를 치거나 바깥을 클릭하면 쉼표가 적용됩니다.")
 
     # ------------------------------------------
     # 💼 준비금
@@ -121,17 +121,24 @@ with col2:
     st.caption("표 아래의 '+' 버튼을 눌러 항목을 추가하거나, 행을 선택해 'Delete' 키로 삭제할 수 있습니다.")
     
     if "prep_df" not in st.session_state:
-        st.session_state.prep_df = pd.DataFrame([{"항목": "여행자보험료", "기타항목입력": "", "금액": "0", "통화": "KRW"}])
+        # 데이터프레임 초기화 시 컬럼 순서 재배치
+        st.session_state.prep_df = pd.DataFrame([{
+            "항목": "여행자보험료", 
+            "금액": "0", 
+            "통화": "KRW",
+            "기타항목입력": ""
+        }])
     
     config = {
         "항목": st.column_config.SelectboxColumn("항목", options=PREP_CATS, required=True),
-        "기타항목입력": st.column_config.TextColumn("기타항목입력 (기타 선택시에만 반영)"),
-        "금액": st.column_config.TextColumn("금액 (입력 시 자동 쉼표)"),
-        "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True)
+        "금액": st.column_config.TextColumn("금액 (입력 후 자동 쉼표)"),
+        "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True),
+        "기타항목입력": st.column_config.TextColumn("기타항목입력 (기타 선택시에만 반영)")
     }
     
     edited_prep = st.data_editor(
         st.session_state.prep_df, 
+        column_order=["항목", "금액", "통화", "기타항목입력"], # 웹에 표시될 순서 강제 고정
         column_config=config, 
         num_rows="dynamic", 
         use_container_width=True,
@@ -162,7 +169,7 @@ with col2:
         st.session_state.prep_df = edited_prep
     
     # ------------------------------------------
-    # 💱 환율 (천단위 쉼표 적용)
+    # 💱 환율
     # ------------------------------------------
     st.subheader("💱 환율")
     
@@ -173,7 +180,7 @@ with col2:
     if "exchange_input" not in st.session_state:
         st.session_state.exchange_input = "1,350"
 
-    st.text_input("적용 환율 (원/달러)", key="exchange_input", on_change=update_exchange)
+    st.text_input("적용 환율 (원/달러)", key="exchange_input", on_change=update_exchange, help="입력 후 엔터를 치거나 바깥을 클릭하면 쉼표가 적용됩니다.")
 
 st.markdown("---")
 
