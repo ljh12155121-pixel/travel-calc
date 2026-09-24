@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import pandas as pd
 import os
+import math
 
 # ==========================================
 # 1. 페이지 설정 및 데이터 로드
@@ -49,6 +50,14 @@ def resolve_grade(country, city=""):
         if g: return g
     return COUNTRY_DEFAULT_GRADE.get(country)
 
+# 숫자 입력 시 쉼표를 제거하고 실수형(float)으로 변환하는 함수
+def clean_number_str(s):
+    s = str(s).replace(",", "").strip()
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
 # ==========================================
 # 2. 웹 UI 레이아웃 구성
 # ==========================================
@@ -82,7 +91,7 @@ with col1:
     with c3: car_rental = st.number_input("차량임차 일수", min_value=0, value=0, help="해당 일비의 1/2만 지급됩니다.")
 
     st.subheader("🏨 숙박 정보")
-    accom_type = st.radio("숙박비 유형", ["할인정액", "실비"],index=0, horizontal=True, help="할인정액은 실비의 85%로 계산됩니다.")
+    accom_type = st.radio("숙박비 유형", ["할인정액", "실비"], index=0, horizontal=True, help="할인정액은 실비의 85%로 계산됩니다.")
 
 with col2:
     st.subheader("🍽 식사 공제")
@@ -91,20 +100,32 @@ with col2:
     with c5: inflight = st.number_input("기내식 횟수", min_value=0, value=0, help="1끼당 일 식비 1/3 공제")
     with c6: other_meal = st.number_input("기타 공제", min_value=0, value=0)
 
+    # ------------------------------------------
+    # ✈ 항공운임 (천단위 쉼표 적용)
+    # ------------------------------------------
     st.subheader("🛫 항공운임")
-    airfare_krw = st.number_input("항공운임 (원화)", min_value=0, value=0, step=10000)
+    if "airfare_str" not in st.session_state:
+        st.session_state.airfare_str = "0"
+        
+    def update_airfare():
+        val = clean_number_str(st.session_state.airfare_input)
+        st.session_state.airfare_str = f"{int(val):,}"
 
+    st.text_input("항공운임 (원화)", value=st.session_state.airfare_str, key="airfare_input", on_change=update_airfare)
+
+    # ------------------------------------------
+    # 💼 준비금 (데이터 편집기 천단위 자동 변환)
+    # ------------------------------------------
     st.subheader("💼 준비금")
     st.caption("표 아래의 '+' 버튼을 눌러 항목을 추가하거나, 행을 선택해 'Delete' 키로 삭제할 수 있습니다.")
     
-    # 세션 상태로 데이터 프레임 관리
     if "prep_df" not in st.session_state:
-        st.session_state.prep_df = pd.DataFrame([{"항목": "여행자보험료", "기타항목입력": "", "금액": 0, "통화": "KRW"}])
+        st.session_state.prep_df = pd.DataFrame([{"항목": "여행자보험료", "기타항목입력": "", "금액": "0", "통화": "KRW"}])
     
     config = {
         "항목": st.column_config.SelectboxColumn("항목", options=PREP_CATS, required=True),
         "기타항목입력": st.column_config.TextColumn("기타항목입력 (기타 선택시)"),
-        "금액": st.column_config.NumberColumn("금액", min_value=0, step=1000),
+        "금액": st.column_config.TextColumn("금액 (입력 시 자동 쉼표)"),
         "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], required=True)
     }
     
@@ -113,44 +134,82 @@ with col2:
         column_config=config, 
         num_rows="dynamic", 
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        key="prep_editor"
     )
+
+    needs_rerun = False
+    for i, row in edited_prep.iterrows():
+        raw_str = str(row["금액"])
+        if raw_str.strip() == "": raw_str = "0"
+        val = clean_number_str(raw_str)
+        fmt_val = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
+        if raw_str != fmt_val:
+            edited_prep.at[i, "금액"] = fmt_val
+            needs_rerun = True
+            
+    if needs_rerun:
+        st.session_state.prep_df = edited_prep
+        st.rerun()
+    else:
+        st.session_state.prep_df = edited_prep
     
+    # ------------------------------------------
+    # 💱 환율 (천단위 쉼표 적용)
+    # ------------------------------------------
     st.subheader("💱 환율")
-    exchange = st.number_input("적용 환율 (원/달러)", min_value=500.0, value=1350.0, step=10.0)
+    if "exchange_str" not in st.session_state:
+        st.session_state.exchange_str = "1,350"
+        
+    def update_exchange():
+        val = clean_number_str(st.session_state.exchange_input)
+        st.session_state.exchange_str = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
+
+    st.text_input("적용 환율 (원/달러)", value=st.session_state.exchange_str, key="exchange_input", on_change=update_exchange)
 
 st.markdown("---")
 
 # ==========================================
 # 3. 계산 및 결과 출력 로직
 # ==========================================
+# 소수점 둘째 자리에서 절사(버림)하는 헬퍼 함수
+def truncate_1_decimal(value):
+    return math.floor(value * 10) / 10
+
 if st.button("📊 여비 계산하기", type="primary", use_container_width=True):
+    # 텍스트로 된 금액들을 계산을 위해 숫자로 변환
+    airfare_krw = clean_number_str(st.session_state.airfare_str)
+    exchange = clean_number_str(st.session_state.exchange_str)
+
     if car_rental > days:
         st.error("차량임차 일수는 출장 일수보다 클 수 없습니다.")
     else:
         # 단가표 매핑
         rates = ALLOWANCE_TABLE[position][grade]
         
-        # 1. 일비 계산
+        # 1. 일비 계산 (계산 후 둘째 자리 절사)
         daily_rate = rates["일비"]
         full_daily_days = days - car_rental
         half_daily_days = car_rental
-        total_daily = daily_rate * full_daily_days + (daily_rate / 2) * half_daily_days
+        calc_daily = daily_rate * full_daily_days + (daily_rate / 2) * half_daily_days
+        total_daily = truncate_1_decimal(calc_daily)
         
-        # 2. 숙박비 계산
+        # 2. 숙박비 계산 (계산 후 둘째 자리 절사)
         if accom_type == "실비":
             per_night = rates["숙박비_상한"]
         else:
             per_night = rates["숙박비_할인"]
-        total_hotel = per_night * nights
+        calc_hotel = per_night * nights
+        total_hotel = truncate_1_decimal(calc_hotel)
         
-        # 3. 식비 계산
+        # 3. 식비 계산 (계산 후 둘째 자리 절사)
         meal_rate = rates["식비"]
         total_meal_count = days * 3
         excluded_meal_count = breakfast + inflight + other_meal
         meal_count_after_exclusion = max(0, total_meal_count - excluded_meal_count)
         meal_unit = meal_rate / 3
-        total_meal = round(meal_unit * meal_count_after_exclusion, 1)
+        calc_meal = meal_unit * meal_count_after_exclusion
+        total_meal = truncate_1_decimal(calc_meal)
 
         # 4. 준비금 취합
         prep_usd_total = 0.0
@@ -158,8 +217,8 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
         prep_items_narrative = []
         
         for _, row in edited_prep.iterrows():
-            amt = row["금액"]
-            if pd.isna(amt) or amt == 0: continue
+            amt = clean_number_str(row["금액"])
+            if amt == 0: continue
             
             cat = row["항목"]
             if cat == "기타" and row["기타항목입력"]:
@@ -172,10 +231,16 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
                 prep_krw_total += amt
                 prep_items_narrative.append(f"({cat}){amt:,.0f}원")
 
-        # 5. 합계 계산
-        total_usd = total_daily + total_hotel + total_meal + prep_usd_total
+        # 준비금(USD)도 둘째 자리 절사 적용
+        prep_usd_total = truncate_1_decimal(prep_usd_total)
+
+        # 5. 합계 계산 (최종 달러 합산 후 한 번 더 절사)
+        calc_total_usd = total_daily + total_hotel + total_meal + prep_usd_total
+        total_usd = truncate_1_decimal(calc_total_usd)
+        
         fixed_krw_total = airfare_krw + prep_krw_total
-        total_krw = round(total_usd * exchange + fixed_krw_total, 0)
+        # 원화는 소수점 미만을 완전히 버림 처리 (정수화)
+        total_krw = math.floor(total_usd * exchange + fixed_krw_total)
 
         # ====================
         # 결과 화면 출력
