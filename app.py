@@ -77,12 +77,12 @@ with col1:
 
     st.subheader("📅 출장 일정")
     c1, c2, c3 = st.columns(3)
-    with c1: nights = st.number_input("숙박 박수", min_value=0, value=3)
-    with c2: days = st.number_input("출장 일수", min_value=1, value=4)
+    with c1: nights = st.number_input("숙박 박수", min_value=0, value=0)
+    with c2: days = st.number_input("출장 일수", min_value=1, value=0)
     with c3: car_rental = st.number_input("차량임차 일수", min_value=0, value=0, help="해당 일비의 1/2만 지급됩니다.")
 
     st.subheader("🏨 숙박 정보")
-    accom_type = st.radio("숙박비 유형", ["실비", "할인정액"],index=1, horizontal=True, help="할인정액은 실비의 85%로 계산됩니다.")
+    accom_type = st.radio("숙박비 유형", ["할인정액", "실비"],index=0, horizontal=True, help="할인정액은 실비의 85%로 계산됩니다.")
 
 with col2:
     st.subheader("🍽 식사 공제")
@@ -91,10 +91,8 @@ with col2:
     with c5: inflight = st.number_input("기내식 횟수", min_value=0, value=0, help="1끼당 일 식비 1/3 공제")
     with c6: other_meal = st.number_input("기타 공제", min_value=0, value=0)
 
-    st.subheader("🛫 항공운임 & 💱 환율")
-    c7, c8 = st.columns(2)
-    with c7: airfare_krw = st.number_input("항공운임 (원화)", min_value=0, value=0, step=10000)
-    with c8: exchange = st.number_input("적용 환율 (원/달러)", min_value=500.0, value=1350.0, step=10.0)
+    st.subheader("🛫 항공운임")
+    airfare_krw = st.number_input("항공운임 (원화)", min_value=0, value=0, step=10000)
 
     st.subheader("💼 준비금")
     st.caption("표 아래의 '+' 버튼을 눌러 항목을 추가하거나, 행을 선택해 'Delete' 키로 삭제할 수 있습니다.")
@@ -117,6 +115,9 @@ with col2:
         use_container_width=True,
         hide_index=True
     )
+    
+    st.subheader("💱 환율")
+    exchange = st.number_input("적용 환율 (원/달러)", min_value=500.0, value=1350.0, step=10.0)
 
 st.markdown("---")
 
