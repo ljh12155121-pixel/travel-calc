@@ -78,7 +78,7 @@ with col1:
     st.subheader("📅 출장 일정")
     c1, c2, c3 = st.columns(3)
     with c1: nights = st.number_input("숙박 박수", min_value=0, value=0)
-    with c2: days = st.number_input("출장 일수", min_value=1, value=0)
+    with c2: days = st.number_input("출장 일수", min_value=0, value=0)
     with c3: car_rental = st.number_input("차량임차 일수", min_value=0, value=0, help="해당 일비의 1/2만 지급됩니다.")
 
     st.subheader("🏨 숙박 정보")
