@@ -82,7 +82,7 @@ with col1:
     with c3: car_rental = st.number_input("차량임차 일수", min_value=0, value=0, help="해당 일비의 1/2만 지급됩니다.")
 
     st.subheader("🏨 숙박 정보")
-    accom_type = st.radio("숙박비 유형", ["실비", "할인정액"], horizontal=True, help="할인정액은 실비의 85%로 계산됩니다.")
+    accom_type = st.radio("숙박비 유형", ["실비", "할인정액"],index=1, horizontal=True, help="할인정액은 실비의 85%로 계산됩니다.")
 
 with col2:
     st.subheader("🍽 식사 공제")
