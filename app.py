@@ -98,8 +98,8 @@ with col1:
 with col2:
     st.subheader("🍽 식사 공제")
     c4, c5, c6 = st.columns(3)
-    with c4: breakfast = st.number_input("조식 횟수", min_value=0, value=0, help="1끼당 일 식비 1/3 공제")
-    with c5: inflight = st.number_input("기내식 횟수", min_value=0, value=0, help="1끼당 일 식비 1/3 공제")
+    with c4: breakfast = st.number_input("조식 횟수(호텔제공)", min_value=0, value=0, help="1식당 일 식비 1/3 공제")
+    with c5: inflight = st.number_input("기내식 횟수", min_value=0, value=0, help="1식당 일 식비 1/3 공제")
     with c6: other_meal = st.number_input("기타 공제", min_value=0, value=0)
 
     # ------------------------------------------
