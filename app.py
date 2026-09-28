@@ -126,7 +126,8 @@ with col2:
     st.subheader("🛫 항공운임")
     
     def update_airfare():
-        val = parse_nonnegative_number(st.session_state.airfare_input)
+        raw_value = str(st.session_state.airfare_input).replace(",", "").strip()
+        val = parse_nonnegative_number(raw_value)
         if val is not None:
             st.session_state.airfare_input = f"{int(val):,}"
 
