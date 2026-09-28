@@ -72,23 +72,6 @@ def parse_nonnegative_number(value):
         return None
     return number
 
-def format_editor_amounts(editor_key):
-    editor_state = st.session_state.get(editor_key, {})
-    if not isinstance(editor_state, dict):
-        return
-
-    rows = list(editor_state.get("edited_rows", {}).values()) + editor_state.get("added_rows", [])
-    for row in rows:
-        if "금액" not in row:
-            continue
-        raw = str(row["금액"]).strip()
-        if not raw:
-            continue
-        value = parse_nonnegative_number(raw)
-        if value is not None:
-            row["금액"] = f"{int(value):,}" if value % 1 == 0 else f"{value:,.1f}"
-    st.session_state[editor_key] = editor_state
-
 # ==========================================
 # 2. 웹 UI 레이아웃 구성
 # ==========================================
@@ -153,11 +136,11 @@ with col2:
     st.caption("표 아래의 '+' 버튼을 눌러 항목을 추가하거나, 행을 선택해 'Delete' 키로 삭제할 수 있습니다.")
     
     if "prep_df" not in st.session_state:
-        st.session_state.prep_df = pd.DataFrame([{"항목": "여행자보험료", "금액": "0", "통화": "KRW", "기타항목입력": ""}])
+        st.session_state.prep_df = pd.DataFrame([{"항목": "여행자보험료", "금액": 0, "통화": "KRW", "기타항목입력": ""}])
     
     prep_table_config = {
         "항목": st.column_config.SelectboxColumn("항목", options=PREP_CATS, required=True),
-        "금액": st.column_config.TextColumn("금액"),
+        "금액": st.column_config.NumberColumn("금액", format="localized", min_value=0, step=0.1, default=0),
         "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True),
         "기타항목입력": st.column_config.TextColumn("기타항목입력 (기타 선택시에만 반영)")
     }
@@ -170,9 +153,7 @@ with col2:
         num_rows="dynamic", 
         use_container_width=True,
         hide_index=True,
-        key="prep_editor",
-        on_change=format_editor_amounts,
-        args=("prep_editor",)
+        key="prep_editor"
     )
 
     # ------------------------------------------
@@ -182,11 +163,11 @@ with col2:
     st.caption("발생한 기타 비용의 내역을 직접 입력해 주세요.")
     
     if "other_df" not in st.session_state:
-        st.session_state.other_df = pd.DataFrame([{"기타항목입력": "", "금액": "0", "통화": "KRW"}])
+        st.session_state.other_df = pd.DataFrame([{"기타항목입력": "", "금액": 0, "통화": "KRW"}])
     
     other_table_config = {
         "기타항목입력": st.column_config.TextColumn("내역 (직접 입력)", required=True),
-        "금액": st.column_config.TextColumn("금액"),
+        "금액": st.column_config.NumberColumn("금액", format="localized", min_value=0, step=0.1, default=0),
         "통화": st.column_config.SelectboxColumn("통화", options=["KRW", "USD"], default="KRW", required=True)
     }
     other_table_order = ["기타항목입력", "금액", "통화"]
@@ -198,15 +179,9 @@ with col2:
         num_rows="dynamic", 
         use_container_width=True,
         hide_index=True,
-        key="other_editor",
-        on_change=format_editor_amounts,
-        args=("other_editor",)
+        key="other_editor"
     )
 
-    # Keep the editor's current values without rerunning while a cell is being edited.
-    st.session_state.prep_df = edited_prep
-    st.session_state.other_df = edited_other
-    
     # ------------------------------------------
     # 💱 환율
     # ------------------------------------------
