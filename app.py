@@ -182,46 +182,9 @@ with col2:
         key="other_editor"
     )
 
-    # ------------------------------------------
-    # 테이블 실시간 쉼표 포맷팅 및 오류 방지 처리
-    # ------------------------------------------
-    needs_rerun = False
-
-    # 1. 준비금 처리
-    for i, row in edited_prep.iterrows():
-        raw_str = str(row["금액"])
-        if raw_str.strip() == "": raw_str = "0"
-        val = parse_nonnegative_number(raw_str)
-        if val is None:
-            continue
-        fmt_val = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
-        if raw_str != fmt_val:
-            edited_prep.at[i, "금액"] = fmt_val
-            needs_rerun = True
-            
-        if row["항목"] != "기타" and row["기타항목입력"] != "":
-            edited_prep.at[i, "기타항목입력"] = ""
-            needs_rerun = True
-
-    # 2. 기타비용 처리 (항목 열이 없으므로 금액 쉼표만 처리)
-    for i, row in edited_other.iterrows():
-        raw_str = str(row["금액"])
-        if raw_str.strip() == "": raw_str = "0"
-        val = parse_nonnegative_number(raw_str)
-        if val is None:
-            continue
-        fmt_val = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
-        if raw_str != fmt_val:
-            edited_other.at[i, "금액"] = fmt_val
-            needs_rerun = True
-            
-    if needs_rerun:
-        st.session_state.prep_df = edited_prep
-        st.session_state.other_df = edited_other
-        st.rerun()
-    else:
-        st.session_state.prep_df = edited_prep
-        st.session_state.other_df = edited_other
+    # Keep the editor's current values without rerunning while a cell is being edited.
+    st.session_state.prep_df = edited_prep
+    st.session_state.other_df = edited_other
     
     # ------------------------------------------
     # 💱 환율
@@ -437,7 +400,7 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
                 f"${per_night:,.1f} × {nights}박 ({accom_type})"
             ],
             "준비금": [
-                ", ".join(
+                " + ".join(
                     amount for amount in (
                         f"${prep_usd_total:,.1f}" if prep_usd_total else "",
                         f"₩{prep_krw_total:,.0f}" if prep_krw_total else ""
@@ -446,7 +409,7 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
                 " + ".join(prep_items_narrative) if prep_items_narrative else "-"
             ],
             "기타비용": [
-                ", ".join(
+                " + ".join(
                     amount for amount in (
                         f"${other_usd_total:,.1f}" if other_usd_total else "",
                         f"₩{other_krw_total:,.0f}" if other_krw_total else ""
