@@ -234,7 +234,7 @@ with col2:
             st.session_state.exchange_input = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
 
     if "exchange_input" not in st.session_state:
-        st.session_state.exchange_input = "1,350"
+        st.session_state.exchange_input = "0"
 
     st.text_input("적용 환율 (원/달러)", key="exchange_input", on_change=update_exchange, help="입력 후 엔터를 치거나 바깥을 클릭하면 쉼표가 적용됩니다.")
 
@@ -437,11 +437,21 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
                 f"${per_night:,.1f} × {nights}박 ({accom_type})"
             ],
             "준비금": [
-                ", ".join(prep_items_narrative) if prep_items_narrative else "-",
+                ", ".join(
+                    amount for amount in (
+                        f"${prep_usd_total:,.1f}" if prep_usd_total else "",
+                        f"₩{prep_krw_total:,.0f}" if prep_krw_total else ""
+                    ) if amount
+                ) or "-",
                 " + ".join(prep_items_narrative) if prep_items_narrative else "-"
             ],
             "기타비용": [
-                ", ".join(other_items_narrative) if other_items_narrative else "-",
+                ", ".join(
+                    amount for amount in (
+                        f"${other_usd_total:,.1f}" if other_usd_total else "",
+                        f"₩{other_krw_total:,.0f}" if other_krw_total else ""
+                    ) if amount
+                ) or "-",
                 " + ".join(other_items_narrative) if other_items_narrative else "-"
             ]
         })
