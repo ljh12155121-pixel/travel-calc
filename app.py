@@ -105,7 +105,13 @@ with col1:
     with c3: car_rental = st.number_input("차량임차 일수", min_value=0, value=0, help="해당 일비의 1/2만 지급됩니다.")
 
     st.subheader("🏨 숙박 정보")
-    accom_type = st.radio("숙박비 유형", ["할인정액", "실비"], index=0, horizontal=True, help="할인정액은 실비의 85%로 계산됩니다.")
+    st.markdown(
+        "<style>div[data-testid='stRadio'] label[data-testid='stRadioOption'] "
+        "[data-testid='stMarkdownContainer'] p "
+        "{font-size: 1.5rem !important; line-height: 1.2;}</style>",
+        unsafe_allow_html=True
+    )
+    accom_type = st.radio("숙박비 유형", ["할인정액", "실비"], index=None, horizontal=True, help="할인정액은 실비의 85%로 계산됩니다.")
 
 with col2:
     st.subheader("🍽 식사 공제")
@@ -222,6 +228,8 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
         errors.append("출장 일수는 1일 이상 입력해 주세요.")
     if car_rental > days:
         errors.append("차량임차 일수는 출장 일수보다 클 수 없습니다.")
+    if accom_type is None:
+        errors.append("숙박비 유형을 선택해 주세요.")
     if breakfast + inflight + other_meal > days * 3:
         errors.append("식사 공제 횟수는 전체 식수(출장 일수 × 3식)를 초과할 수 없습니다.")
     if airfare_krw is None:
@@ -330,10 +338,23 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
         # ====================
         st.header("📋 출장 여비 계산 결과")
         
-        rc1, rc2, rc3 = st.columns(3)
-        rc1.metric("총 합산 금액 (환율적용)", f"₩{total_krw:,.0f}")
-        rc2.metric("달러 ($)", f"${total_usd:,.1f}")
-        rc3.metric("원화 (₩)", f"₩{fixed_krw_total:,.0f}")
+        total_col, equal_col, dollar_col, plus_col, krw_col = st.columns([2.8, 0.35, 2.2, 0.35, 2.2])
+        total_col.metric("총 합산 금액", f"₩{total_krw:,.0f}")
+        with equal_col:
+            st.markdown(
+                "<div style='height: 72px; display: flex; align-items: center; "
+                "justify-content: center; font-size: 2rem; font-weight: 600;'>=</div>",
+                unsafe_allow_html=True
+            )
+        dollar_col.metric("달러 ($)", f"${total_usd:,.1f}")
+        dollar_col.caption(f"환율 ₩{exchange:,.1f}/USD 적용")
+        with plus_col:
+            st.markdown(
+                "<div style='height: 72px; display: flex; align-items: center; "
+                "justify-content: center; font-size: 2rem; font-weight: 600;'>+</div>",
+                unsafe_allow_html=True
+            )
+        krw_col.metric("원화 (₩)", f"₩{fixed_krw_total:,.0f}")
 
         st.subheader("📝 산출내역 (복사 가능)")
         
