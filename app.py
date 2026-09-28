@@ -355,13 +355,38 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
 
         st.subheader("📊 항목별 상세 테이블")
         df_result = pd.DataFrame({
-            "성명/출장지": [f"{name}\n({country}{' / ' + city if city else ''})"],
-            "계(KRW)": [f"₩{total_krw:,.0f}"],
-            "항공운임": [f"₩{airfare_krw:,.0f}"],
-            "일비": [f"${total_daily:,.1f}"],
-            "식비": [f"${total_meal:,.1f}"],
-            "숙박비": [f"${total_hotel:,.1f}"],
-            "준비금": [", ".join(prep_items_narrative) if prep_items_narrative else "-"],
-            "기타비용": [", ".join(other_items_narrative) if other_items_narrative else "-"]
+            "성명/출장지": [
+                f"{name}\n({country}{' / ' + city if city else ''})",
+                "계산식"
+            ],
+            "계(KRW)": [
+                f"₩{total_krw:,.0f}",
+                f"${total_usd:,.1f} × ₩{exchange:,.1f} + ₩{fixed_krw_total:,.0f}"
+            ],
+            "항공운임": [
+                f"₩{airfare_krw:,.0f}",
+                f"실제 예매 금액 ₩{airfare_krw:,.0f}"
+            ],
+            "일비": [
+                f"${total_daily:,.1f}",
+                f"${daily_rate:,.1f} × {full_daily_days}일 + (${daily_rate:,.1f} ÷ 2) × {half_daily_days}일"
+                if car_rental > 0 else f"${daily_rate:,.1f} × {days}일"
+            ],
+            "식비": [
+                f"${total_meal:,.1f}",
+                f"(${meal_rate:,.1f} ÷ 3식) × max(0, {total_meal_count}식 - {excluded_meal_count}식)"
+            ],
+            "숙박비": [
+                f"${total_hotel:,.1f}",
+                f"${per_night:,.1f} × {nights}박 ({accom_type})"
+            ],
+            "준비금": [
+                ", ".join(prep_items_narrative) if prep_items_narrative else "-",
+                " + ".join(prep_items_narrative) if prep_items_narrative else "-"
+            ],
+            "기타비용": [
+                ", ".join(other_items_narrative) if other_items_narrative else "-",
+                " + ".join(other_items_narrative) if other_items_narrative else "-"
+            ]
         })
         st.dataframe(df_result, hide_index=True)
