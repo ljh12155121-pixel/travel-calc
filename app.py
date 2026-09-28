@@ -72,6 +72,23 @@ def parse_nonnegative_number(value):
         return None
     return number
 
+def format_editor_amounts(editor_key):
+    editor_state = st.session_state.get(editor_key, {})
+    if not isinstance(editor_state, dict):
+        return
+
+    rows = list(editor_state.get("edited_rows", {}).values()) + editor_state.get("added_rows", [])
+    for row in rows:
+        if "금액" not in row:
+            continue
+        raw = str(row["금액"]).strip()
+        if not raw:
+            continue
+        value = parse_nonnegative_number(raw)
+        if value is not None:
+            row["금액"] = f"{int(value):,}" if value % 1 == 0 else f"{value:,.1f}"
+    st.session_state[editor_key] = editor_state
+
 # ==========================================
 # 2. 웹 UI 레이아웃 구성
 # ==========================================
@@ -153,7 +170,9 @@ with col2:
         num_rows="dynamic", 
         use_container_width=True,
         hide_index=True,
-        key="prep_editor"
+        key="prep_editor",
+        on_change=format_editor_amounts,
+        args=("prep_editor",)
     )
 
     # ------------------------------------------
@@ -179,7 +198,9 @@ with col2:
         num_rows="dynamic", 
         use_container_width=True,
         hide_index=True,
-        key="other_editor"
+        key="other_editor",
+        on_change=format_editor_amounts,
+        args=("other_editor",)
     )
 
     # Keep the editor's current values without rerunning while a cell is being edited.
