@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import os
 import math
+import re
 
 # ==========================================
 # 1. 페이지 설정 및 데이터 로드
@@ -60,6 +61,17 @@ def clean_number_str(s):
     except ValueError:
         return 0.0
 
+def parse_nonnegative_number(value):
+    raw = str(value).strip()
+    if not raw:
+        return 0.0
+    if not re.fullmatch(r"(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?", raw):
+        return None
+    number = float(raw.replace(",", ""))
+    if not math.isfinite(number):
+        return None
+    return number
+
 # ==========================================
 # 2. 웹 UI 레이아웃 구성
 # ==========================================
@@ -108,8 +120,9 @@ with col2:
     st.subheader("🛫 항공운임")
     
     def update_airfare():
-        val = clean_number_str(st.session_state.airfare_input)
-        st.session_state.airfare_input = f"{int(val):,}"
+        val = parse_nonnegative_number(st.session_state.airfare_input)
+        if val is not None:
+            st.session_state.airfare_input = f"{int(val):,}"
 
     if "airfare_input" not in st.session_state:
         st.session_state.airfare_input = "0"
@@ -178,7 +191,9 @@ with col2:
     for i, row in edited_prep.iterrows():
         raw_str = str(row["금액"])
         if raw_str.strip() == "": raw_str = "0"
-        val = clean_number_str(raw_str)
+        val = parse_nonnegative_number(raw_str)
+        if val is None:
+            continue
         fmt_val = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
         if raw_str != fmt_val:
             edited_prep.at[i, "금액"] = fmt_val
@@ -192,7 +207,9 @@ with col2:
     for i, row in edited_other.iterrows():
         raw_str = str(row["금액"])
         if raw_str.strip() == "": raw_str = "0"
-        val = clean_number_str(raw_str)
+        val = parse_nonnegative_number(raw_str)
+        if val is None:
+            continue
         fmt_val = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
         if raw_str != fmt_val:
             edited_other.at[i, "금액"] = fmt_val
@@ -212,8 +229,9 @@ with col2:
     st.subheader("💱 환율")
     
     def update_exchange():
-        val = clean_number_str(st.session_state.exchange_input)
-        st.session_state.exchange_input = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
+        val = parse_nonnegative_number(st.session_state.exchange_input)
+        if val is not None:
+            st.session_state.exchange_input = f"{int(val):,}" if val % 1 == 0 else f"{val:,.1f}"
 
     if "exchange_input" not in st.session_state:
         st.session_state.exchange_input = "1,350"
@@ -228,12 +246,49 @@ st.markdown("---")
 def truncate_1_decimal(value):
     return math.floor(value * 10) / 10
 
-if st.button("📊 여비 계산하기", type="primary", use_container_width=True):
-    airfare_krw = clean_number_str(st.session_state.airfare_input)
-    exchange = clean_number_str(st.session_state.exchange_input)
+@st.dialog("입력 오류")
+def show_input_errors(errors):
+    st.error("아래 입력 내용을 확인해 주세요.")
+    for error in errors:
+        st.write(f"- {error}")
 
+if st.button("📊 여비 계산하기", type="primary", use_container_width=True):
+    errors = []
+    airfare_krw = parse_nonnegative_number(st.session_state.airfare_input)
+    exchange = parse_nonnegative_number(st.session_state.exchange_input)
+
+    if not name.strip():
+        errors.append("성명을 입력해 주세요.")
+    if days < 1:
+        errors.append("출장 일수는 1일 이상 입력해 주세요.")
     if car_rental > days:
-        st.error("차량임차 일수는 출장 일수보다 클 수 없습니다.")
+        errors.append("차량임차 일수는 출장 일수보다 클 수 없습니다.")
+    if breakfast + inflight + other_meal > days * 3:
+        errors.append("식사 공제 횟수는 전체 식수(출장 일수 × 3식)를 초과할 수 없습니다.")
+    if airfare_krw is None:
+        errors.append("항공운임은 쉼표를 포함한 0 이상의 숫자로 입력해 주세요.")
+    if exchange is None or exchange <= 0:
+        errors.append("적용 환율은 0보다 큰 숫자로 입력해 주세요.")
+
+    for table_name, table, category_column in (
+        ("준비금", edited_prep, "항목"),
+        ("기타비용", edited_other, None),
+    ):
+        for row_number, (_, row) in enumerate(table.iterrows(), start=1):
+            amount = parse_nonnegative_number(row["금액"])
+            if amount is None:
+                errors.append(f"{table_name} {row_number}행 금액은 0 이상의 숫자로 입력해 주세요.")
+                continue
+            if amount == 0:
+                continue
+            description = str(row.get("기타항목입력", "")).strip()
+            if category_column and str(row[category_column]).strip() == "기타" and not description:
+                errors.append(f"준비금 {row_number}행에서 '기타' 항목의 내용을 입력해 주세요.")
+            if category_column is None and not description:
+                errors.append(f"기타비용 {row_number}행의 내역을 입력해 주세요.")
+
+    if errors:
+        show_input_errors(errors)
     else:
         rates = ALLOWANCE_TABLE[position][grade]
         
@@ -374,7 +429,8 @@ if st.button("📊 여비 계산하기", type="primary", use_container_width=Tru
             ],
             "식비": [
                 f"${total_meal:,.1f}",
-                f"(${meal_rate:,.1f} ÷ 3식) × max(0, {total_meal_count}식 - {excluded_meal_count}식)"
+                f"(${meal_rate:,.1f} ÷ 3식) × {meal_count_after_exclusion}식"
+                + (f" (총 {total_meal_count}식 중 {excluded_meal_count}식 공제, 최소 0식)" if excluded_meal_count > 0 else "")
             ],
             "숙박비": [
                 f"${total_hotel:,.1f}",
